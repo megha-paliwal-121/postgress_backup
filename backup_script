@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Set variables
+DB_NAME="chorus"
+DB_USER="chorus_admin"
+DB_HOST="localhost"  # Change this if the DB is on a different host
+BACKUP_DIR="/home/ubuntu/ps_backup"
+BACKUP_FILE="${BACKUP_DIR}/db_backup_$(date +'%Y%m%d_%H%M%S').sql"
+GCS_BUCKET="postgres_data_chorus"
+GCS_PATH="pg_data"  # Optional subfolder in GCS bucket
+
+# Ensure backup directory exists
+mkdir -p "${BACKUP_DIR}"
+
+# Perform PostgreSQL database backup
+echo "Starting PostgreSQL backup..."
+pg_dump -U "${DB_USER}" -h "${DB_HOST}" -F c -f "${BACKUP_FILE}" "${DB_NAME}"
+
+# Check if backup was successful
+if [ $? -eq 0 ]; then
+    echo "Backup successful: ${BACKUP_FILE}"
+else
+    echo "Backup failed!" >&2
+    exit 1
+fi
+
+# Upload to Google Cloud Storage
+echo "Uploading backup to Google Cloud Storage..."
+gsutil cp "${BACKUP_FILE}" "gs://${GCS_BUCKET}/${GCS_PATH}/"
+
+# Check if upload was successful
+if [ $? -eq 0 ]; then
+    echo "Backup uploaded successfully to gs://${GCS_BUCKET}/${GCS_PATH}/"
+else
+    echo "Failed to upload backup to GCS!" >&2
+    exit 1
+fi
+
+# Optional: Remove local backup file after upload
+rm -rf "${BACKUP_FILE}"
+
+echo "Backup and upload process completed successfully."
